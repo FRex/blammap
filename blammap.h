@@ -43,14 +43,9 @@ int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname);
 
 #ifdef BLAMMAP_IMPLEMENTATION
 
-#ifdef BLAMMAP_WINDOWS
-#include <assert.h>
+/* common impl part: */
 #include <string.h>
-#include <stdlib.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
+#include <assert.h>
 static void zeroout(blammap_t * map)
 {
     assert(map);
@@ -61,6 +56,13 @@ void blammap_init(blammap_t * map)
 {
     zeroout(map);
 }
+
+/* windows specific impl: */
+#ifdef BLAMMAP_WINDOWS
+#include <stdlib.h>
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 
 static int seterr(blammap_t * map, int step)
 {
@@ -162,5 +164,10 @@ void blammap_free(blammap_t * map)
 }
 
 #endif /* BLAMMAP_WINDOWS */
+
+/* posix specific impl: */
+#ifdef BLAMMAP_POSIX
+#error "BLAMMAP_POSIX not implemented!"
+#endif /* BLAMMAP_POSIX */
 
 #endif /* BLAMMAP_IMPLEMENTATION */
