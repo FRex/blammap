@@ -8,6 +8,11 @@ static void zeroout(blammap_t * map)
     memset(map, 0x0, sizeof(blammap_t));
 }
 
+void blammap_init(blammap_t * map)
+{
+    zeroout(map);
+}
+
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <stdlib.h>
@@ -72,5 +77,10 @@ int blammap_map(blammap_t * map, const char * utf8fname)
 
 void blammap_free(blammap_t * map)
 {
-    /* todo */
+    if(map->ptr)
+        UnmapViewOfFile(map->ptr);
+
+    closeandzerohandle(&map->mapping);
+    closeandzerohandle(&map->file);
+    zeroout(map);
 }
