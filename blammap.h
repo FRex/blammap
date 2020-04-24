@@ -1,6 +1,14 @@
 #ifndef BLAMMAP_H
 #define BLAMMAP_H
 
+#if !defined(BLAMMAP_WINDOWS) && !defined(BLAMMAP_POSIX)
+#ifdef _MSC_VER
+#define BLAMMAP_WINDOWS
+#else
+#define BLAMMAP_POSIX
+#endif
+#endif /* blamap windows and posix both not defined */
+
 typedef struct blammap
 {
     /* ptr and len of the mapping */
@@ -26,14 +34,16 @@ void blammap_free(blammap_t * map);
 /* mmaps a file, returns 1 on success, 0 on error, doesn't free a previous mapping */
 int blammap_map(blammap_t * map, const char * utf8fname);
 
-/* TODO: put ifdef around here */
+#ifdef BLAMMAP_WINDOWS
 #include <wchar.h>
 int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname);
+#endif /* BLAMMAP_WINDOWS */
 
 #endif /* BLAMMAP_H */
 
 #ifdef BLAMMAP_IMPLEMENTATION
 
+#ifdef BLAMMAP_WINDOWS
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -150,5 +160,7 @@ void blammap_free(blammap_t * map)
     closeandzerohandle(&map->privfile);
     zeroout(map);
 }
+
+#endif /* BLAMMAP_WINDOWS */
 
 #endif /* BLAMMAP_IMPLEMENTATION */
