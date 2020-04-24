@@ -30,6 +30,15 @@ static int getsize(HANDLE file, long long * out)
     return 1;
 }
 
+/* this also wouldn't compile if HANDLE was not void ptr so double benefit..? */
+static void closeandzerohandle(void ** handle)
+{
+    if(*handle != NULL && *handle != INVALID_HANDLE_VALUE)
+        CloseHandle(*handle);
+
+    *handle = NULL;
+}
+
 int blammap_map(blammap_t * map, const char * utf8fname)
 {
     zeroout(map);
@@ -66,16 +75,9 @@ int blammap_map(blammap_t * map, const char * utf8fname)
         return 1;
     }
 
-    if(map->mapping)
-        CloseHandle(map->mapping);
-
-    if(map->file)
-        CloseHandle(map->file);
-
-    map->mapping = NULL;
-    map->file = NULL;
+    closeandzerohandle(&map->mapping);
+    closeandzerohandle(&map->file);
     map->len = 0;
-
     return 0;
 }
 
