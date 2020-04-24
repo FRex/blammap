@@ -28,10 +28,11 @@ static int seterr(blammap_t * map, int step)
 static int getsize(HANDLE file, long long * out)
 {
     LARGE_INTEGER li;
+
+    assert(out);
     if(!GetFileSizeEx(file, &li))
         return 0;
 
-    assert(out);
     *out = li.QuadPart;
     return 1;
 }
@@ -39,6 +40,7 @@ static int getsize(HANDLE file, long long * out)
 /* this also wouldn't compile if HANDLE was not void ptr so double benefit..? */
 static void closeandzerohandle(void ** handle)
 {
+    assert(handle);
     if(*handle != NULL && *handle != INVALID_HANDLE_VALUE)
         CloseHandle(*handle);
 
@@ -77,6 +79,7 @@ int blammap_map(blammap_t * map, const char * utf8fname)
 
 void blammap_free(blammap_t * map)
 {
+    assert(map);
     if(map->ptr)
         UnmapViewOfFile(map->ptr);
 
