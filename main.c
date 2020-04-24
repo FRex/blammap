@@ -1,16 +1,17 @@
 #include <stdio.h>
+
+#define BLAMMAP_IMPLEMENTATION
 #include "blammap.h"
 
 int main(int argc, char ** argv)
 {
     blammap_t map;
-    const char * fname;
     int i;
 
     printf("This is a %d-bit exe!\n", (int)(sizeof(void*) * 8));
     for(i = 0; i < argc; ++i)
     {
-        fname = argv[i];
+        const char * fname = argv[i];
         if(blammap_map(&map, argv[i]))
         {
             printf("OK: mapped %20s, addr = %p, len = %lld\n", fname, map.ptr, map.len);
