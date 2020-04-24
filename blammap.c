@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <string.h>
 
-static void zero_out(blammap_t * map)
+static void zeroout(blammap_t * map)
 {
     assert(map);
     memset(map, 0x0, sizeof(blammap_t));
@@ -12,60 +12,71 @@ static void zero_out(blammap_t * map)
 #include <Windows.h>
 #include <stdlib.h>
 
-int blammap_map(blammap_t * map, const char * utf8fname)
+static void seterr(blammap_t * map, int step)
+{
+    assert(map);
+    map->errstep = step;
+    map->errcode = GetLastError();
+}
+
+static int getsize(HANDLE file, long long * out)
 {
     LARGE_INTEGER li;
-    HANDLE f, m;
-    void * ptr;
-
-    zero_out(map);
-
-    /* todo: proper utf8->utf16 before this (own func) */
-    f = CreateFileA(utf8fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if(f == INVALID_HANDLE_VALUE)
-    {
-        map->errstep = 1;
-        map->errcode = GetLastError();
+    if(!GetFileSizeEx(file, &li))
         return 0;
-    }
 
-    if(GetFileSizeEx(f, &li) == 0)
-    {
-        CloseHandle(f);
-        map->errstep = 2;
-        map->errcode = GetLastError();
-        return 0;
-    }
-
-    m = CreateFileMappingW(f, NULL, PAGE_READONLY, 0, 0, NULL);
-    if(m == NULL)
-    {
-        CloseHandle(f);
-        map->errstep = 3;
-        map->errcode = GetLastError();
-        return 0;
-    }
-
-    ptr = MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0);
-    if(!ptr)
-    {
-        CloseHandle(f);
-        CloseHandle(m);
-        map->errstep = 3;
-        map->errcode = GetLastError();
-        return 0;
-    }
-
-    map->ptr = ptr;
-    map->len = li.QuadPart;
-
-    map->file = f;
-    map->mapping = m;
-
-    map->errstep = 0;
-    map->errcode = 0;
-
+    assert(out);
+    *out = li.QuadPart;
     return 1;
+}
+
+int blammap_map(blammap_t * map, const char * utf8fname)
+{
+    zeroout(map);
+    while(1)
+    {
+        /* todo: proper utf8->utf16 before this (own func) */
+        map->file = CreateFileA(utf8fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if(map->file == INVALID_HANDLE_VALUE)
+        {
+            seterr(map, 1);
+            break;
+        }
+
+        if(!getsize(map->file, &map->len))
+        {
+            seterr(map, 2);
+            break;
+        }
+
+        map->mapping = CreateFileMappingW(map->file, NULL, PAGE_READONLY, 0, 0, NULL);
+        if(map->mapping == NULL)
+        {
+            seterr(map, 3);
+            break;
+        }
+
+        map->ptr = MapViewOfFile(map->mapping, FILE_MAP_READ, 0, 0, 0);
+        if(!map->ptr)
+        {
+            seterr(map, 4);
+            break;
+        }
+
+        return 1;
+    }
+
+    if(map->mapping)
+        CloseHandle(map->mapping);
+
+    if(map->file)
+        CloseHandle(map->file);
+
+    map->mapping = NULL;
+    map->file = NULL;
+    map->len = 0;
+
+    return 0;
 }
 
 void blammap_free(blammap_t * map)
