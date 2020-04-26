@@ -132,7 +132,7 @@ int blammap_map(blammap_t * map, const char * utf8fname)
 
     neededw = MultiByteToWideChar(CP_UTF8, 0u, utf8fname, -1, NULL, 0);
     if(neededw > STACKBUFFSIZE)
-        buffptr = calloc(neededw, sizeof(wchar_t));
+        buffptr = (wchar_t*)calloc(neededw, sizeof(wchar_t));
     else
         buffptr = buff;
 
