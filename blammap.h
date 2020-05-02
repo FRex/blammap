@@ -11,6 +11,9 @@
 
 typedef struct blammap
 {
+    /* is this a succesful mapping, 0 = not so zeroed struct is noop to free */
+    int ok;
+
     /* ptr and len of the mapping */
     void * ptr;
     long long len;
@@ -22,6 +25,11 @@ typedef struct blammap
     /* private, for unmapping, don't touch */
     void * privfile;
     void * privmapping;
+
+    /* WIP: */
+
+    int fd;
+    int linuxerrno;
 
 } blammap_t;
 
@@ -115,12 +123,14 @@ int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname)
         if(!map->ptr && blammap_priv_seterr(map, 5))
             break;
 
+        map->ok = 1;
         return 1;
     }
 
     blammap_priv_closeandzerohandle(&map->privmapping);
     blammap_priv_closeandzerohandle(&map->privfile);
     map->len = 0;
+    map->ok = 0;
     return 0;
 }
 
@@ -155,7 +165,9 @@ int blammap_map(blammap_t * map, const char * utf8fname)
 
 void blammap_free(blammap_t * map)
 {
-    assert(map);
+    if(!map || !map->ok)
+        return;
+
     if(map->ptr)
         UnmapViewOfFile(map->ptr);
 
@@ -168,7 +180,85 @@ void blammap_free(blammap_t * map)
 
 /* posix specific impl: */
 #ifdef BLAMMAP_POSIX
-#error "BLAMMAP_POSIX not implemented!"
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+
+static int blammap_priv_seterr(blammap_t * map, int step)
+{
+    assert(map);
+    map->errstep = step;
+    map->linuxerrno = errno;
+    return 1;
+}
+
+    #define BLAMMAP_PRIV_STATIC_ASSERT(msg, expr) typedef int BLAMMAP_PRIV_STATIC_ASSERT_##msg[(expr) * 2 - 1];
+    BLAMMAP_PRIV_STATIC_ASSERT(off_t_is_64_bit, sizeof(off_t) == 8);
+    #undef BLAMMAP_PRIV_STATIC_ASSERT
+
+    /* only compiles if st_size in struct stat is off_t so with above static assert it ensures 64-bit fsize */
+    static long long blammap_priv_cast(off_t * size)
+    {
+        return (long long)(*size);
+    }
+
+static int blammap_priv_getsize(int fd, long long * out)
+{
+    struct stat mybuf;
+    if(fstat(fd, &mybuf))
+        return 0;
+
+    assert(out);
+    *out = blammap_priv_cast(&mybuf.st_size);
+    return 1;
+}
+
+int blammap_map(blammap_t * map, const char * utf8fname)
+{
+    blammap_priv_zeroout(map);
+
+    while(1)
+    {
+        map->fd = open(utf8fname, O_RDONLY);
+        if(map->fd == -1 && blammap_priv_seterr(map, 1))
+            break;
+
+        if(!blammap_priv_getsize(map->fd, &map->len) && blammap_priv_seterr(map, 2))
+            break;
+
+        map->ptr = mmap(NULL, (size_t)map->len, PROT_READ, MAP_PRIVATE, map->fd, 0);
+        if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 3))
+            break;
+
+        map->ok = 1;
+        return 1;
+    }
+
+    if(map->fd != -1)
+        close(map->fd);
+
+    map->ok = 0;
+    return 0;
+}
+
+void blammap_free(blammap_t * map)
+{
+    if(!map || !map->ok)
+        return;
+
+    if(map->ptr)
+        munmap(map->ptr, map->len);
+
+    if(map->fd != -1)
+        close(map->fd);
+
+    blammap_priv_zeroout(map);
+}
+
 #endif /* BLAMMAP_POSIX */
 
 #endif /* BLAMMAP_IMPLEMENTATION */
