@@ -19,8 +19,8 @@ int main(int argc, char ** argv)
         }
         else
         {
-            printf("failed to map %20s: step = %d, err = %u, errno = %d\n",
-                fname, map.errstep, map.errcode, map.linuxerrno);
+            printf("failed to map %20s: step = %d, name = %s, err = %u, errno = %d\n",
+                fname, map.errstep, map.errname, map.errcode, map.linuxerrno);
         }
     } /* for */
 

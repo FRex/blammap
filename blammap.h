@@ -18,8 +18,9 @@ typedef struct blammap
     void * ptr;
     long long len;
 
-    /* function number that failed + error code from winapi */
+    /* function number that failed + name of function that failed + error code from winapi */
     int errstep;
+    const char * errname;
     unsigned errcode;
 
     /* private, for unmapping, don't touch */
@@ -72,10 +73,11 @@ void blammap_init(blammap_t * map)
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-static int blammap_priv_seterr(blammap_t * map, int step)
+static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
 {
     assert(map);
     map->errstep = step;
+    map->errname = name;
     map->errcode = GetLastError();
     return 1;
 }
@@ -108,19 +110,19 @@ int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname)
     while(1)
     {
         map->privfile = CreateFileW(utf16fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if(map->privfile == INVALID_HANDLE_VALUE && blammap_priv_seterr(map, 2))
+        if(map->privfile == INVALID_HANDLE_VALUE && blammap_priv_seterr(map, 2, "CreateFileW"))
             break;
 
-        if(!blammap_priv_getsize(map->privfile, &map->len) && blammap_priv_seterr(map, 3))
+        if(!blammap_priv_getsize(map->privfile, &map->len) && blammap_priv_seterr(map, 3, "GetFileSizeEx"))
             break;
 
         /* todo: fix the confusing error this gives for empty files, special case empty file maybe? */
         map->privmapping = CreateFileMappingW(map->privfile, NULL, PAGE_READONLY, 0, 0, NULL);
-        if(map->privmapping == NULL && blammap_priv_seterr(map, 4))
+        if(map->privmapping == NULL && blammap_priv_seterr(map, 4, "CreateFileMappingW"))
             break;
 
         map->ptr = MapViewOfFile(map->privmapping, FILE_MAP_READ, 0, 0, 0);
-        if(!map->ptr && blammap_priv_seterr(map, 5))
+        if(!map->ptr && blammap_priv_seterr(map, 5, "MapViewOfFile"))
             break;
 
         map->ok = 1;
@@ -151,6 +153,7 @@ int blammap_map(blammap_t * map, const char * utf8fname)
     {
         blammap_priv_zeroout(map);
         map->errstep = 1;
+        map->errname = "calloc";
         return 0;
     }
 
@@ -188,10 +191,11 @@ void blammap_free(blammap_t * map)
 #include <fcntl.h>
 #include <errno.h>
 
-static int blammap_priv_seterr(blammap_t * map, int step)
+static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
 {
     assert(map);
     map->errstep = step;
+    map->errname = name;
     map->linuxerrno = errno;
     return 1;
 }
@@ -224,14 +228,15 @@ int blammap_map(blammap_t * map, const char * utf8fname)
     while(1)
     {
         map->fd = open(utf8fname, O_RDONLY);
-        if(map->fd == -1 && blammap_priv_seterr(map, 1))
+        if(map->fd == -1 && blammap_priv_seterr(map, 1, "open"))
             break;
 
-        if(!blammap_priv_getsize(map->fd, &map->len) && blammap_priv_seterr(map, 2))
+        if(!blammap_priv_getsize(map->fd, &map->len) && blammap_priv_seterr(map, 2, "fstat"))
             break;
 
+        /* todo: this fails also with size 0 */
         map->ptr = mmap(NULL, (size_t)map->len, PROT_READ, MAP_PRIVATE, map->fd, 0);
-        if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 3))
+        if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 3, "mmap"))
             break;
 
         map->ok = 1;
