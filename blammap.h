@@ -201,15 +201,15 @@ static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
     return 1;
 }
 
-    #define BLAMMAP_PRIV_STATIC_ASSERT(msg, expr) typedef int BLAMMAP_PRIV_STATIC_ASSERT_##msg[(expr) * 2 - 1];
-    BLAMMAP_PRIV_STATIC_ASSERT(off_t_is_64_bit, sizeof(off_t) == 8);
-    #undef BLAMMAP_PRIV_STATIC_ASSERT
+#define BLAMMAP_PRIV_STATIC_ASSERT(msg, expr) typedef int BLAMMAP_PRIV_STATIC_ASSERT_##msg[(expr) * 2 - 1];
+BLAMMAP_PRIV_STATIC_ASSERT(off_t_is_64_bit, sizeof(off_t) == 8);
+#undef BLAMMAP_PRIV_STATIC_ASSERT
 
-    /* only compiles if st_size in struct stat is off_t so with above static assert it ensures 64-bit fsize */
-    static long long blammap_priv_cast(off_t * size)
-    {
-        return (long long)(*size);
-    }
+/* only compiles if st_size in struct stat is off_t so with above static assert it ensures 64-bit fsize */
+static long long blammap_priv_cast(off_t * size)
+{
+    return (long long)(*size);
+}
 
 static int blammap_priv_getsize(int fd, long long * out)
 {
