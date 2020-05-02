@@ -8,7 +8,9 @@ int main(int argc, char ** argv)
     blammap_t map;
     int i;
 
-    printf("This is a %d-bit exe!\n", (int)(sizeof(void*) * 8));
+    printf("This is a %d-bit exe! sizeof(blammap_t) = %d\n",
+        (int)(sizeof(void*) * 8), (int)sizeof(blammap_t));
+
     for(i = 0; i < argc; ++i)
     {
         const char * fname = argv[i];
@@ -19,8 +21,8 @@ int main(int argc, char ** argv)
         }
         else
         {
-            printf("failed to map %20s: step = %d, name = %s, err = %u, errno = %d\n",
-                fname, map.errstep, map.errname, map.errcode, map.linuxerrno);
+            printf("failed to map %20s: step = %d, name = %s, errcode = %lld\n",
+                fname, map.errstep, map.errname, map.errcode);
         }
     } /* for */
 

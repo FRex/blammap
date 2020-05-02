@@ -18,19 +18,15 @@ typedef struct blammap
     void * ptr;
     long long len;
 
-    /* function number that failed + name of function that failed + error code from winapi */
+    /* function number that failed + name of function that failed + error code from winapi/errno */
     int errstep;
     const char * errname;
-    unsigned errcode;
+    long long errcode;
 
-    /* private, for unmapping, don't touch */
+    /* private, for open/close/mapping/unmapping, don't touch */
+    int fd;
     void * privfile;
     void * privmapping;
-
-    /* WIP: */
-
-    int fd;
-    int linuxerrno;
 
 } blammap_t;
 
@@ -65,6 +61,10 @@ void blammap_init(blammap_t * map)
 {
     blammap_priv_zeroout(map);
 }
+
+#define BLAMMAP_PRIV_STATIC_ASSERT(msg, expr) typedef int BLAMMAP_PRIV_STATIC_ASSERT_##msg[(expr) * 2 - 1];
+BLAMMAP_PRIV_STATIC_ASSERT(long_long_is_64_bit, sizeof(long long) == 8);
+#undef BLAMMAP_PRIV_STATIC_ASSERT
 
 /* windows specific impl: */
 #ifdef BLAMMAP_WINDOWS
@@ -131,6 +131,7 @@ int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname)
 
     blammap_priv_closeandzerohandle(&map->privmapping);
     blammap_priv_closeandzerohandle(&map->privfile);
+    map->ptr = NULL;
     map->len = 0;
     map->ok = 0;
     return 0;
@@ -196,7 +197,7 @@ static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
     assert(map);
     map->errstep = step;
     map->errname = name;
-    map->linuxerrno = errno;
+    map->errcode = errno;
     return 1;
 }
 
@@ -246,6 +247,8 @@ int blammap_map(blammap_t * map, const char * utf8fname)
     if(map->fd != -1)
         close(map->fd);
 
+    map->ptr = NULL;
+    map->len = 0;
     map->ok = 0;
     return 0;
 }
