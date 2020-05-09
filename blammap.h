@@ -214,10 +214,10 @@ static long long blammap_priv_cast(off_t * size)
 static int blammap_priv_getsize(int fd, long long * out)
 {
     struct stat mybuf;
+    assert(out);
     if(fstat(fd, &mybuf))
         return 0;
 
-    assert(out);
     *out = blammap_priv_cast(&mybuf.st_size);
     return 1;
 }
