@@ -18,7 +18,7 @@ int main(int argc, char ** argv)
 
     for(i = 0; i < count; ++i)
     {
-        if(!blammap_map(&map, argv[0]))
+        if(!blammap_map(&map, argv[0], 0))
         {
             printf("FAILED: i = %d, step = %d, name = %s, errcode = %lld\n",
                 i, map.errstep, map.errname, map.errcode);

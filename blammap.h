@@ -36,11 +36,11 @@ void blammap_init(blammap_t * map);
 void blammap_free(blammap_t * map);
 
 /* mmaps a file, returns 1 on success, 0 on error, doesn't free a previous mapping */
-int blammap_map(blammap_t * map, const char * utf8fname);
+int blammap_map(blammap_t * map, const char * utf8fname, long long maxfsize);
 
 #ifdef BLAMMAP_WINDOWS
 #include <wchar.h>
-int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname);
+int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname, long long maxfsize);
 #endif /* BLAMMAP_WINDOWS */
 
 #endif /* BLAMMAP_H */
@@ -61,6 +61,15 @@ void blammap_init(blammap_t * map)
     blammap_priv_zeroout(map);
 }
 
+/* return 0 if the fsize is too big to map compared to allowed */
+static int blammap_priv_checksize(long long maxfsize, long long fsize)
+{
+    if(maxfsize <= 0)
+        return 1;
+
+    return fsize <= maxfsize;
+}
+
 #define BLAMMAP_PRIV_STATIC_ASSERT(msg, expr) typedef int BLAMMAP_PRIV_STATIC_ASSERT_##msg[(expr) * 2 - 1];
 BLAMMAP_PRIV_STATIC_ASSERT(long_long_is_64_bit, sizeof(long long) == 8);
 #undef BLAMMAP_PRIV_STATIC_ASSERT
@@ -72,13 +81,18 @@ BLAMMAP_PRIV_STATIC_ASSERT(long_long_is_64_bit, sizeof(long long) == 8);
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
+static int blammap_priv_seterr_code(blammap_t * map, int step, const char * name, DWORD err)
 {
     assert(map);
     map->errstep = step;
     map->errname = name;
-    map->errcode = GetLastError();
+    map->errcode = err;
     return 1;
+}
+
+static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
+{
+    return blammap_priv_seterr_code(map, step, name, GetLastError());
 }
 
 static int blammap_priv_getsize(HANDLE file, long long * out)
@@ -103,16 +117,19 @@ static void blammap_priv_closeandzerohandle(void ** handle)
     *handle = NULL;
 }
 
-int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname)
+int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname, long long maxfsize)
 {
     blammap_priv_zeroout(map);
     while(1)
     {
         map->privfile = CreateFileW(utf16fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if(map->privfile == INVALID_HANDLE_VALUE && blammap_priv_seterr(map, 2, "CreateFileW"))
+        if(map->privfile == INVALID_HANDLE_VALUE && blammap_priv_seterr(map, 1, "CreateFileW"))
             break;
 
-        if(!blammap_priv_getsize(map->privfile, &map->len) && blammap_priv_seterr(map, 3, "GetFileSizeEx"))
+        if(!blammap_priv_getsize(map->privfile, &map->len) && blammap_priv_seterr(map, 2, "GetFileSizeEx"))
+            break;
+
+        if(!blammap_priv_checksize(maxfsize, map->len) && blammap_priv_seterr_code(map, 3, "checksize", 0))
             break;
 
         /* todo: fix the confusing error this gives for empty files, special case empty file maybe? */
@@ -136,7 +153,7 @@ int blammap_map_wide(blammap_t * map, const wchar_t * utf16fname)
     return 0;
 }
 
-int blammap_map(blammap_t * map, const char * utf8fname)
+int blammap_map(blammap_t * map, const char * utf8fname, long long maxfsize)
 {
 #define BLAMMAP_PRIV_STACKBUFFSIZE 100
     wchar_t buff[BLAMMAP_PRIV_STACKBUFFSIZE];
@@ -158,7 +175,7 @@ int blammap_map(blammap_t * map, const char * utf8fname)
     }
 
     MultiByteToWideChar(CP_UTF8, 0u, utf8fname, -1, buffptr, neededw);
-    ret = blammap_map_wide(map, buffptr);
+    ret = blammap_map_wide(map, buffptr, maxfsize);
     if(neededw > BLAMMAP_PRIV_STACKBUFFSIZE)
         free(buffptr);
 
@@ -191,13 +208,18 @@ void blammap_free(blammap_t * map)
 #include <fcntl.h>
 #include <errno.h>
 
-static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
+static int blammap_priv_seterr_code(blammap_t * map, int step, const char * name, int err)
 {
     assert(map);
     map->errstep = step;
     map->errname = name;
-    map->errcode = errno;
+    map->errcode = err;
     return 1;
+}
+
+static int blammap_priv_seterr(blammap_t * map, int step, const char * name)
+{
+    return blammap_priv_seterr_code(map, step, name, errno);
 }
 
 #define BLAMMAP_PRIV_STATIC_ASSERT(msg, expr) typedef int BLAMMAP_PRIV_STATIC_ASSERT_##msg[(expr) * 2 - 1];
@@ -221,7 +243,7 @@ static int blammap_priv_getsize(int fd, long long * out)
     return 1;
 }
 
-int blammap_map(blammap_t * map, const char * utf8fname)
+int blammap_map(blammap_t * map, const char * utf8fname, long long maxfsize)
 {
     int fd;
 
@@ -237,9 +259,12 @@ int blammap_map(blammap_t * map, const char * utf8fname)
         if(!blammap_priv_getsize(map->fd, &map->len) && blammap_priv_seterr(map, 2, "fstat"))
             break;
 
+        if(!blammap_priv_checksize(maxfsize, map->len) && blammap_priv_seterr_code(map, 3, "checksize", 0))
+            break;
+
         /* todo: this fails also with size 0 */
         map->ptr = mmap(NULL, (size_t)map->len, PROT_READ, MAP_PRIVATE, map->fd, 0);
-        if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 3, "mmap"))
+        if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 4, "mmap"))
             break;
 
         /* after mapping is done we can close the fd */

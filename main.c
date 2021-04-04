@@ -14,7 +14,7 @@ int main(int argc, char ** argv)
     for(i = 0; i < argc; ++i)
     {
         const char * fname = argv[i];
-        if(blammap_map(&map, argv[i]))
+        if(blammap_map(&map, argv[i], 0))
         {
             printf("OK: mapped %20s, addr = %p, len = %lld\n", fname, map.ptr, map.len);
             blammap_free(&map);
