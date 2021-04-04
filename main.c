@@ -6,15 +6,16 @@
 int main(int argc, char ** argv)
 {
     blammap_t map;
-    int i;
+    int i, maxsize;
 
     printf("This is a %d-bit exe! sizeof(blammap_t) = %d\n",
         (int)(sizeof(void*) * 8), (int)sizeof(blammap_t));
 
+    maxsize = getenv("MAXSIZE") ? atoi(getenv("MAXSIZE")) : 0;
     for(i = 0; i < argc; ++i)
     {
         const char * fname = argv[i];
-        if(blammap_map(&map, argv[i], 0))
+        if(blammap_map(&map, argv[i], maxsize))
         {
             printf("OK: mapped %20s, addr = %p, len = %lld\n", fname, map.ptr, map.len);
             blammap_free(&map);
