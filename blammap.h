@@ -256,14 +256,14 @@ int blammap_map(blammap_t * map, const char * utf8fname, long long maxfsize)
         if(fd == -1 && blammap_priv_seterr(map, 1, "open"))
             break;
 
-        if(!blammap_priv_getsize(map->fd, &map->len) && blammap_priv_seterr(map, 2, "fstat"))
+        if(!blammap_priv_getsize(fd, &map->len) && blammap_priv_seterr(map, 2, "fstat"))
             break;
 
         if(!blammap_priv_checksize(maxfsize, map->len) && blammap_priv_seterr_code(map, 3, "checksize", 0))
             break;
 
         /* todo: this fails also with size 0 */
-        map->ptr = mmap(NULL, (size_t)map->len, PROT_READ, MAP_PRIVATE, map->fd, 0);
+        map->ptr = mmap(NULL, (size_t)map->len, PROT_READ, MAP_PRIVATE, fd, 0);
         if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 4, "mmap"))
             break;
 
