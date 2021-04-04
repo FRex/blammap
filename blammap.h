@@ -24,7 +24,6 @@ typedef struct blammap
     long long errcode;
 
     /* private, for open/close/mapping/unmapping, don't touch */
-    int fd;
     void * privfile;
     void * privmapping;
 
@@ -224,12 +223,15 @@ static int blammap_priv_getsize(int fd, long long * out)
 
 int blammap_map(blammap_t * map, const char * utf8fname)
 {
+    int fd;
+
     blammap_priv_zeroout(map);
 
+    fd = -1;
     while(1)
     {
-        map->fd = open(utf8fname, O_RDONLY);
-        if(map->fd == -1 && blammap_priv_seterr(map, 1, "open"))
+        fd = open(utf8fname, O_RDONLY);
+        if(fd == -1 && blammap_priv_seterr(map, 1, "open"))
             break;
 
         if(!blammap_priv_getsize(map->fd, &map->len) && blammap_priv_seterr(map, 2, "fstat"))
@@ -240,12 +242,15 @@ int blammap_map(blammap_t * map, const char * utf8fname)
         if(map->ptr == MAP_FAILED && blammap_priv_seterr(map, 3, "mmap"))
             break;
 
+        /* after mapping is done we can close the fd */
+        close(fd);
+
         map->ok = 1;
         return 1;
     }
 
-    if(map->fd != -1)
-        close(map->fd);
+    if(fd != -1)
+        close(fd);
 
     map->ptr = NULL;
     map->len = 0;
@@ -260,9 +265,6 @@ void blammap_free(blammap_t * map)
 
     if(map->ptr)
         munmap(map->ptr, map->len);
-
-    if(map->fd != -1)
-        close(map->fd);
 
     blammap_priv_zeroout(map);
 }
