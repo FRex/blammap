@@ -1,3 +1,5 @@
+/* define BLAMMAP_IMPLEMENTATION in one source file to put the implementation there */
+
 #ifndef BLAMMAP_H
 #define BLAMMAP_H
 
@@ -7,7 +9,7 @@
 #else
 #define BLAMMAP_POSIX
 #endif
-#endif /* blamap windows and posix both not defined */
+#endif /* blamap windows and posix both not defined, so try autodetect */
 
 typedef struct blammap
 {
