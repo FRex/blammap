@@ -4,7 +4,7 @@
 #define BLAMMAP_H
 
 #if !defined(BLAMMAP_WINDOWS) && !defined(BLAMMAP_POSIX)
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(WIN32) || defined(_WIN32)
 #define BLAMMAP_WINDOWS
 #else
 #define BLAMMAP_POSIX
